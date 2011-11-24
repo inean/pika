@@ -233,7 +233,7 @@ specified a %s. Reconnections will fail.",
         self.heartbeat = None
 
         # Default back-pressure multiplier value
-        self._backpressure = 10
+        self._backpressure = 100
 
         # Connection state
         self.connection_state = CONNECTION_CLOSED
@@ -760,11 +760,7 @@ specified a %s. Reconnections will fail.",
         """
         avg_frame_size = self.bytes_sent / self.frames_sent
         if self.outbound_buffer.size > (avg_frame_size * self._backpressure):
-            est_frames_behind = self.outbound_buffer.size / avg_frame_size
-            message = "Pika: Write buffer exceeded warning threshold" + \
-                      " at %i bytes and an estimated %i frames behind"
-            warn(message % (self.outbound_buffer.size, est_frames_behind))
-            self.callbacks.process(0, 'backpressure', self)
+            self.callbacks.process(0, 'backpressure', self, self)
 
     def _flush_outbound(self):
         """
