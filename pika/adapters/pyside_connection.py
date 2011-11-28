@@ -10,6 +10,45 @@ from pika.utils import cached
 from pika.adapters.base_connection import BaseConnection
 from pika.adapters.base_connection import READ, WRITE, ERROR
 
+from pika.reconnection_strategies import ReconnectionStrategy
+from PySide.QtNetwork import QNetworkConfigurationManager, QNetworkSession
+
+
+class PySideReconnectionStrategy(ReconnectionStrategy):
+
+    can_reconnect = True
+
+    def __init__(self):
+        self.manager = QNetworkConfigurationManager()
+        self.session = self._session()
+        self.manager.onlineStateChanged.connect(self._connect)
+
+    def _session(self):
+        return QNetworkSession(self.manager.defaultConfiguration())
+
+    def _connect(self, is_connected):
+        if is_connected is False:
+            # create a new session
+            self.session = self._session()
+            # start session if required
+            caps = self.manager.capabilities()
+            if caps & QNetworkConfigurationManager.CanStartAndStopInterfaces:
+                self.session.open()
+                self.session.waitForOpened(-1)
+
+    def on_connect_attempt(self, conn):
+        self._connect(self.manager.isOnline())
+
+    def on_connection_open(self, conn):
+        caps = self.manager.capabilities()
+        if caps & QNetworkConfigurationManager.ForcedRoaming:
+            reconnect = conn.force_reconnect
+            self.session.newConfigurationActivated.connect(reconnect)
+
+    def on_connection_closed(self, conn):
+        conn._reconnect() if not self.is_active else None
+
+
 class PySideTimer(object):
     def __init__(self, container, callback, single_shot):
         self.callback = callback
