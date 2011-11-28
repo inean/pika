@@ -16,6 +16,8 @@ if exists(normpath('../pika')):
     sys.path.insert(0, '..')
 
 from pika.adapters.pyside_connection import PySideConnection
+from pika.adapters.pyside_connection import PySideReconnectionStrategy
+
 from pika.connection import ConnectionParameters
 
 # import PySide
@@ -66,11 +68,15 @@ if __name__ == '__main__':
 
     # Connect to RabbitMQ
     host = (len(sys.argv) > 1) and sys.argv[1] or '127.0.0.1'
-    connection = PySideConnection(ConnectionParameters(host), on_connected)
-
-    # Loop until CTRL-C
     # create a Qt Application
     application = QCoreApplication(sys.argv)
+    # pyside connection. Reconnection strategy requires that an
+    # application is defined (Eventloop)
+    connection = PySideConnection(
+        ConnectionParameters(host),
+        on_connected,
+        PySideReconnectionStrategy())
+    # Loop until CTRL-C
     # shutdown app at 20s
     QTimer.singleShot(20000, shutdown)
     # Add a Control-C interrupt
