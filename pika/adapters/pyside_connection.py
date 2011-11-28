@@ -10,6 +10,26 @@ from pika.utils import cached
 from pika.adapters.base_connection import BaseConnection
 from pika.adapters.base_connection import READ, WRITE, ERROR
 
+class PySideTimer(object):
+    def __init__(self, container, callback, single_shot):
+        self.callback = callback
+        self.single_shot = single_shot
+        self.first_run = False
+
+    def register(self, pool, deadline):
+        timeout_id = pool.startTimer(deadline)
+        pool.timers[timeout_id] = self
+        return timeout_id
+
+    def unregister(self, pool, timeout_id):
+        pool.killTimer(timeout_id)
+        del pool[timeout_id]
+
+    def __call__(self, pool, timeout_id):
+        self.callback()
+        if self.single_shot:
+            self.unregister(pool, timeout_id)
+
 
 class PySideConnectionPoller(QObject):
 
@@ -81,8 +101,23 @@ class PySideConnection(BaseConnection):
 class IOLoop(QObject):
     def __init__(self, poller):
         self.poller = poller
+        self.timers = {}
+
+    def timerEvent(self, event):
+        self.timers[event.timerId()](self, timeout_id)
+
+    def add_timeout(self, deadline, callback, oneshot=False):
+        deadline = deadline - time.time()
+        return PySideTimer(self, callback, oneshot).register(self, deadline)
+
+    def add_soft_timeout(self, min_time, max_time, callback, oneshot=False):
+        raise NotImplementedError
+
+    def remove_timeout(self, handler):
+        self.timers[timeout_id].unregister(self, handler)
 
     def stop(self):
+        [timer.unregister(self, key) for key, timer in self.timers]
         QTimer.singleShot(0, self.poller.unpoll)
         self.exec_ and QCoreApplication.instance().quit()
 
